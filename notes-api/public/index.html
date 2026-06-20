@@ -2,58 +2,166 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Notes App</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: sans-serif; background: #f4f4f4; padding: 40px; }
-      h1 { margin-bottom: 24px; }
+      body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f4f5f7; color: #1d2129; padding: 40px 20px; }
+      .wrap { max-width: 520px; margin: 0 auto; }
+      h1 { margin-bottom: 6px; font-size: 26px; }
+      .sub { color: #8a909a; font-size: 13px; margin-bottom: 20px; }
 
-      .form { background: white; padding: 20px; border-radius: 8px; margin-bottom: 32px; display: flex; flex-direction: column; gap: 10px; max-width: 500px; }
-      .form input, .form textarea { padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
-      .form textarea { resize: vertical; height: 80px; }
-      .form button { padding: 10px; background: #333; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
-      .form button:hover { background: #555; }
+      #status { padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+      .logged-out { background: #ffe2e2; color: #b4232a; }
+      .logged-in { background: #def7e6; color: #1f7a44; }
 
-      .notes { display: flex; flex-direction: column; gap: 12px; max-width: 500px; }
-      .note { background: white; padding: 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: flex-start; }
-      .note-content h3 { margin-bottom: 4px; }
-      .note-content p { color: #666; font-size: 14px; }
-      .note-actions { display: flex; gap: 8px; }
-      .note-actions button { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
-      .btn-delete { background: #e74c3c; color: white; }
-      .btn-edit { background: #3498db; color: white; }
+      .panel { background: white; padding: 20px; border-radius: 10px; margin-bottom: 22px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+      .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #8a909a; }
+      input, textarea { padding: 11px; border: 1px solid #d4d8de; border-radius: 7px; font-size: 14px; font-family: inherit; }
+      textarea { resize: vertical; min-height: 80px; }
+      button { padding: 11px; border: none; border-radius: 7px; cursor: pointer; font-size: 14px; font-weight: 600; background: #2d6cdf; color: white; }
+      button:hover { background: #245bc0; }
+      button.ghost { background: #eef0f3; color: #1d2129; }
+      button.ghost:hover { background: #e2e5ea; }
+      .row { display: flex; gap: 10px; }
+      .row > button { flex: 1; }
+
+      .notes { display: flex; flex-direction: column; gap: 12px; }
+      .note { background: white; padding: 16px; border-radius: 10px; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+      .note h3 { margin-bottom: 4px; font-size: 16px; }
+      .note p { color: #6b7280; font-size: 14px; white-space: pre-wrap; }
+      .note small { display: block; margin-top: 8px; color: #aab0ba; font-size: 11px; }
+      .note-actions { display: flex; gap: 8px; flex-shrink: 0; }
+      .note-actions button { padding: 7px 12px; font-size: 13px; }
+      .btn-delete { background: #e74c3c; }
       .btn-delete:hover { background: #c0392b; }
-      .btn-edit:hover { background: #2980b9; }
+      .btn-edit { background: #eef0f3; color: #1d2129; }
+      .btn-edit:hover { background: #e2e5ea; }
+      .empty { text-align: center; color: #aab0ba; padding: 24px 0; font-size: 14px; }
+      .hidden { display: none; }
     </style>
   </head>
   <body>
-    <h1>Notes</h1>
+    <div class="wrap">
+      <h1>📝 Notes</h1>
+      <div class="sub">Express · Prisma · JWT auth</div>
 
-    <div class="form">
-      <input type="text" id="title" placeholder="Title" />
-      <textarea id="body" placeholder="Note content"></textarea>
-      <button onclick="saveNote()">Save Note</button>
+      <div id="status" class="logged-out">Not logged in</div>
+
+      <!-- AUTH -->
+      <div class="panel" id="auth-panel">
+        <h2>Register / Login</h2>
+        <input type="text" id="username" placeholder="Username" />
+        <input type="password" id="password" placeholder="Password" />
+        <div class="row">
+          <button class="ghost" onclick="register()">Register</button>
+          <button onclick="login()">Login</button>
+        </div>
+      </div>
+
+      <!-- NOTE FORM (hidden until logged in) -->
+      <div class="panel hidden" id="note-panel">
+        <h2 id="form-title">New note</h2>
+        <input type="text" id="title" placeholder="Title" />
+        <textarea id="body" placeholder="Note content"></textarea>
+        <div class="row">
+          <button id="cancel-btn" class="ghost hidden" onclick="cancelEdit()">Cancel</button>
+          <button onclick="saveNote()">Save Note</button>
+        </div>
+      </div>
+
+      <div class="notes" id="notes-list"></div>
+
+      <button id="logout-btn" class="ghost hidden" style="width:100%;margin-top:18px;" onclick="logout()">Log out</button>
     </div>
-
-    <div class="notes" id="notes-list"></div>
 
     <script>
       let editingId = null;
+      let token = localStorage.getItem("token");
+      let username = localStorage.getItem("username");
+
+      function authHeaders() {
+        const h = { "Content-Type": "application/json" };
+        if (token) h["Authorization"] = "Bearer " + token;
+        return h;
+      }
+
+      function refreshUI() {
+        const status = document.getElementById("status");
+        const loggedIn = !!token;
+        status.className = loggedIn ? "logged-in" : "logged-out";
+        status.textContent = loggedIn ? "Logged in as " + username : "Not logged in";
+        document.getElementById("auth-panel").classList.toggle("hidden", loggedIn);
+        document.getElementById("note-panel").classList.toggle("hidden", !loggedIn);
+        document.getElementById("logout-btn").classList.toggle("hidden", !loggedIn);
+        if (!loggedIn) document.getElementById("notes-list").innerHTML = "";
+      }
+
+      async function register() {
+        const res = await fetch("/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value,
+          }),
+        });
+        const data = await res.json();
+        alert(res.ok ? "Registered! Now log in." : (data.message || "Register failed"));
+      }
+
+      async function login() {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          token = data.token;
+          username = document.getElementById("username").value;
+          localStorage.setItem("token", token);
+          localStorage.setItem("username", username);
+          document.getElementById("password").value = "";
+          refreshUI();
+          loadNotes();
+        } else {
+          alert(data.message || "Login failed");
+        }
+      }
+
+      function logout() {
+        token = null;
+        username = null;
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        refreshUI();
+      }
 
       async function loadNotes() {
-        const res = await fetch("/notes");
+        if (!token) return;
+        const res = await fetch("/notes", { headers: authHeaders() });
+        if (!res.ok) return;
         const notes = await res.json();
         const list = document.getElementById("notes-list");
+        if (notes.length === 0) {
+          list.innerHTML = '<div class="empty">No notes yet — add your first one above.</div>';
+          return;
+        }
         list.innerHTML = "";
         notes.forEach((note) => {
           list.innerHTML += `
             <div class="note">
-              <div class="note-content">
+              <div>
                 <h3>${note.title}</h3>
-                <p>${note.body}</p>
+                <p>${note.body ?? ""}</p>
+                <small>note #${note.id}</small>
               </div>
               <div class="note-actions">
-                <button class="btn-edit" onclick="editNote(${note.id}, '${note.title}', '${note.body}')">Edit</button>
+                <button class="btn-edit" onclick="editNote(${note.id}, ${JSON.stringify(note.title)}, ${JSON.stringify(note.body ?? "")})">Edit</button>
                 <button class="btn-delete" onclick="deleteNote(${note.id})">Delete</button>
               </div>
             </div>`;
@@ -61,27 +169,23 @@
       }
 
       async function saveNote() {
+        if (!token) return alert("Log in first");
         const title = document.getElementById("title").value;
         const body = document.getElementById("body").value;
         if (!title || !body) return alert("Fill in both fields");
 
+        let res;
         if (editingId) {
-          await fetch(`/notes/${editingId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, body }),
-          });
-          editingId = null;
+          res = await fetch(`/notes/${editingId}`, { method: "PUT", headers: authHeaders(), body: JSON.stringify({ title, body }) });
         } else {
-          await fetch("/notes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, body }),
-          });
+          res = await fetch("/notes", { method: "POST", headers: authHeaders(), body: JSON.stringify({ title, body }) });
         }
 
-        document.getElementById("title").value = "";
-        document.getElementById("body").value = "";
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          return alert(data.message || data.error || "Request failed (" + res.status + ")");
+        }
+        cancelEdit();
         loadNotes();
       }
 
@@ -89,13 +193,29 @@
         editingId = id;
         document.getElementById("title").value = title;
         document.getElementById("body").value = body;
+        document.getElementById("form-title").textContent = "Edit note #" + id;
+        document.getElementById("cancel-btn").classList.remove("hidden");
+      }
+
+      function cancelEdit() {
+        editingId = null;
+        document.getElementById("title").value = "";
+        document.getElementById("body").value = "";
+        document.getElementById("form-title").textContent = "New note";
+        document.getElementById("cancel-btn").classList.add("hidden");
       }
 
       async function deleteNote(id) {
-        await fetch(`/notes/${id}`, { method: "DELETE" });
+        if (!token) return alert("Log in first");
+        const res = await fetch(`/notes/${id}`, { method: "DELETE", headers: authHeaders() });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          return alert(data.message || data.error || "Delete failed (" + res.status + ")");
+        }
         loadNotes();
       }
 
+      refreshUI();
       loadNotes();
     </script>
   </body>
