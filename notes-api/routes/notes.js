@@ -1,104 +1,24 @@
 const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middleware/auth");
+//imports
 
-const prisma = require("../prismaClient");
-const { z } = require("zod");
+//controller imports->
 
-const noteSchema = z.object({
-  title: z.string().min(2),
-  body: z.string().optional(),
-});
+const {
+  getAllNotes,
+  getNoteById,
+  addNote,
+  deleteNote,
+  updateNote,
+} = require("../controllers/notesController");
 
-router.get("/", authMiddleware, async (req, res, next) => {
-  //get only the logged-in user's notes
-  try {
-    const notes = await prisma.note.findMany({
-      where: { userId: req.user.id },
-    });
-    res.json(notes);
-  } catch (error) {
-    next(error);
-  }
-});
+//calling from controller ->
 
-router.get("/:id", authMiddleware, async (req, res, next) => {
-  try {
-    const result = await prisma.note.findUnique({
-      where: { id: Number(req.params.id) },
-    });
-    if (result && result.userId === req.user.id) {
-      res.json(result);
-    } else {
-      res.status(404).json({ error: "Note not found" });
-    }
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/", authMiddleware, async (req, res, next) => {
-  try {
-    const validation = noteSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({ error: validation.error.issues });
-    }
-    const result = await prisma.note.create({
-      data: {
-        title: validation.title,
-        body: validation.body,
-        userId: req.user.id,
-      },
-    });
-    res.status(201).json({
-      id: result.id,
-      title: validation.title,
-      body: validation.body,
-      message: "succesfully sent using prisma!!!",
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.put("/:id", authMiddleware, async (req, res, next) => {
-  try {
-    const validation = noteSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({ error: validation.error.issues });
-    }
-    const result = await prisma.note.update({
-      where: { id: parseInt(req.params.id), userId: req.user.id },
-      data: { title: validation.title, body: validation.body },
-    });
-
-    res.status(200).json({
-      message: "done",
-    });
-  } catch (error) {
-    if (error.code === "P2025") {
-      return res
-        .status(404)
-        .json({ message: "note not found, try a different one" });
-    }
-    next(error);
-  }
-});
-
-router.delete("/:id", authMiddleware, async (req, res, next) => {
-  try {
-    const result = await prisma.note.delete({
-      where: { id: parseInt(req.params.id), userId: req.user.id },
-    });
-    res
-      .status(200)
-      .json({ message: `done, deleted note with id ${result.id}` });
-  } catch (error) {
-    if (error.code === "P2025") {
-      return res.status(404).json({ message: "note not found!" });
-    }
-    next(error);
-  }
-});
+router.get("/", authMiddleware, getAllNotes);
+router.get("/:id", authMiddleware, getNoteById);
+router.post("/", authMiddleware, addNote);
+router.put("/:id", authMiddleware, updateNote);
+router.delete("/:id", authMiddleware, deleteNote);
 
 module.exports = router;
