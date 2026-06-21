@@ -50,13 +50,13 @@ const loginUser = async (req, res, next) => {
       return res.status(400).json({ error: validation.error.issues });
     }
     const userLogin = await prisma.user.findUnique({
-      where: { username: validation.username },
+      where: { username: validation.data.username },
     });
     if (userLogin === null) {
       return res.status(400).json({ message: "user not found" });
     }
     const hashedPassword = await bcrypt.compare(
-      validation.password,
+      validation.data.password,
       userLogin.password,
     );
     if (!hashedPassword) {
@@ -74,4 +74,17 @@ const loginUser = async (req, res, next) => {
   }
 };
 
-module.exports = { registerUser, getAllUsers, loginUser };
+const deleteUser = async (req, res, next) => {
+  try {
+    const result = await prisma.user.delete({
+      where: { id: parseInt(req.params.id) },
+    });
+    res
+      .status(200)
+      .json({ message: `user ${result.username} was deleted succesfully` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { registerUser, getAllUsers, loginUser, deleteUser };

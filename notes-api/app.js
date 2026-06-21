@@ -29,4 +29,4 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-app.listen(3000, () => console.log("running on port 3000"));
+module.exports = app;
