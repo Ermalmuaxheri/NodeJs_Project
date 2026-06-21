@@ -6,11 +6,27 @@ const prisma = require("../prismaClient");
 
 const authMiddleware = require("../middleware/auth");
 
+const { z } = require("zod");
+
+const registerSchema = z.object({
+  username: z.string().min(3),
+  password: z.string().min(5),
+});
+
+const loginSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
 authRouter.post("/register", async (req, res, next) => {
   try {
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    const validation = registerSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ errors: validation.error.issues });
+    }
+    const hashedPassword = await bcrypt.hash(validation.data.password, 10);
     const result = await prisma.user.create({
-      data: { username: req.body.username, password: hashedPassword },
+      data: { username: validation.data.username, password: hashedPassword },
     });
     res.status(200).json({ message: "succesfuly registered" });
   } catch (error) {
@@ -34,11 +50,15 @@ authRouter.get("/listallusers", authMiddleware, async (req, res, next) => {
 
 authRouter.post("/login", async (req, res, next) => {
   try {
+    const validation = loginSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.issues });
+    }
     const userLogin = await prisma.user.findUnique({
       where: { username: req.body.username },
     });
     if (userLogin === null) {
-      return json.status(400).json({ message: "user not found" });
+      return res.status(400).json({ message: "user not found" });
     }
     const hashedPassword = await bcrypt.compare(
       req.body.password,

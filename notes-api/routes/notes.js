@@ -3,6 +3,12 @@ const router = express.Router();
 const authMiddleware = require("../middleware/auth");
 
 const prisma = require("../prismaClient");
+const { z } = require("zod");
+
+const noteSchema = z.object({
+  title: z.string().min(2),
+  body: z.string().optional(),
+});
 
 router.get("/", authMiddleware, async (req, res, next) => {
   //get only the logged-in user's notes
@@ -33,17 +39,21 @@ router.get("/:id", authMiddleware, async (req, res, next) => {
 
 router.post("/", authMiddleware, async (req, res, next) => {
   try {
+    const validation = noteSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.issues });
+    }
     const result = await prisma.note.create({
       data: {
-        title: req.body.title,
-        body: req.body.body,
+        title: validation.title,
+        body: validation.body,
         userId: req.user.id,
       },
     });
     res.status(201).json({
       id: result.id,
-      title: req.body.title,
-      body: req.body.body,
+      title: validation.title,
+      body: validation.body,
       message: "succesfully sent using prisma!!!",
     });
   } catch (error) {
@@ -53,9 +63,13 @@ router.post("/", authMiddleware, async (req, res, next) => {
 
 router.put("/:id", authMiddleware, async (req, res, next) => {
   try {
+    const validation = noteSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.issues });
+    }
     const result = await prisma.note.update({
       where: { id: parseInt(req.params.id), userId: req.user.id },
-      data: { title: req.body.title, body: req.body.body },
+      data: { title: validation.title, body: validation.body },
     });
 
     res.status(200).json({
